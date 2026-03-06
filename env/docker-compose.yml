@@ -1,0 +1,240 @@
+# 自定义网络：所有服务互通，适配跨容器通信
+services:
+
+  # MySQL (业务库+元数据存储，开启binlog)
+  mysql:
+    image: mysql:8.0.32
+    container_name: mysql
+    ports:
+      - "3306:3306"
+    environment:
+      - MYSQL_ROOT_PASSWORD=123456
+      - MYSQL_DATABASE=nacos_config
+      - MYSQL_CHARACTER_SET_SERVER=utf8mb4
+      - MYSQL_COLLATION_SERVER=utf8mb4_general_ci
+      - TZ=Asia/Shanghai
+    command:
+      - --default-authentication-plugin=mysql_native_password
+      - --lower_case_table_names=1
+    volumes:
+#      - ./mysql/data:/var/lib/mysql
+      - ./mysql/my.cnf:/etc/mysql/conf.d/mysql.cnf:ro
+      - ./mysql/init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: [ "CMD", "mysqladmin" ,"ping", "-h", "localhost" ]
+      interval: 5s
+      timeout: 10s
+      retries: 10
+      start_period: 15s
+    networks:
+      - my-network
+    restart: always
+
+  # ClickHouse (OLAP 分析)
+  clickhouse:
+    image: clickhouse:25.8.13.73
+    container_name: clickhouse
+    ports:
+      - "8123:8123"
+      - "9000:9000"
+    volumes:
+      - ./init:/docker-entrypoint-initdb.d
+#      - ./clickhouse/data:/var/lib/clickhouse
+    environment:
+      - CLICKHOUSE_DB=lakehouse
+      - CLICKHOUSE_USER=root
+      - CLICKHOUSE_PASSWORD=123456
+      - CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1
+    networks:
+      - my-network
+    restart: always
+
+  # MongoDB (IoT数据存储)
+  # 配置服务器 - 存储集群元数据
+  configsvr:
+    image: mongo:7.0.24-jammy
+    container_name: mongodb-configsvr
+    restart: always
+#    volumes:
+#      - ./mongo/data/configsvr:/data/db
+    command: >
+      mongod --configsvr 
+      --dbpath /data/db 
+      --port 27019 
+      --bind_ip_all 
+      --replSet configRS
+      --noauth
+    networks:
+      - my-network
+
+  # 分片1 - 内部节点，不暴露端口
+  shard1:
+    image: mongo:7.0.24-jammy
+    container_name: mongodb-shard1
+    restart: always
+    #    volumes:
+    #      - ./mongo/data/shard1:/data/db
+    command: >
+      mongod --shardsvr 
+      --dbpath /data/db 
+      --port 27020 
+      --bind_ip_all 
+      --replSet shard1RS
+      --noauth
+    networks:
+      - my-network
+
+  # 分片2 - 内部节点，不暴露端口
+  shard2:
+    image: mongo:7.0.24-jammy
+    container_name: mongodb-shard2
+    restart: always
+    #    volumes:
+    #      - ./mongo/data/shard2:/data/db
+    command: >
+      mongod --shardsvr 
+      --dbpath /data/db 
+      --port 27021 
+      --bind_ip_all 
+      --replSet shard2RS
+      --noauth
+    networks:
+      - my-network
+
+  # 路由节点 - 仅对外暴露 27017 端口
+  mongos:
+    image: mongo:7.0.24-jammy
+    container_name: mongodb-mongos
+    restart: always
+    #    environment:
+    #      - MONGO_INITDB_ROOT_USERNAME=root
+    #      - MONGO_INITDB_ROOT_PASSWORD=123456
+    ports:
+      - "27017:27017"
+    command: >
+      mongos --configdb configRS/configsvr:27019 
+      --bind_ip_all
+    depends_on:
+      - configsvr
+      - shard1
+      - shard2
+    networks:
+      - my-network
+
+  # Redis (缓存)
+  redis:
+    image: redis:8.4.0
+    container_name: redis
+    privileged: true
+    ports:
+      - 6379:6379
+    volumes:
+      - ./redis/redis.conf:/usr/local/etc/redis/redis.conf
+    command: redis-server /usr/local/etc/redis/redis.conf
+    networks:
+      - my-network
+    restart: always
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # ===================== 消息队列 =====================
+  kafka:
+    image: apache/kafka:4.1.1
+    container_name: kafka
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+      # 对外暴露的地址（宿主机访问用 127.0.0.1 或本机IP）
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      # Controller 通信使用容器名（Docker 内部网络解析）
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      # 单机版必要配置
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_NUM_PARTITIONS: 3
+      # 可选：开启自动创建主题（方便测试）
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: true
+    ports:
+      - "9092:9092"
+      - "9093:9093"
+    networks:
+      - my-network
+    restart: always
+
+#   Flink JobManager
+  flink-jobmanager:
+     image: flink:1.20.3-java17
+     container_name: flink-jobmanager
+     hostname: jobmanager
+     ports:
+       - "8081:8081"
+       - "6123:6123"
+     # 核心：仅启动JobManager集群，不运行任何任务
+     command: jobmanager
+     environment:
+       - |
+         FLINK_PROPERTIES=jobmanager.rpc.address: jobmanager
+         parallelism.default: 2
+         taskmanager.numberOfTaskSlots: 2
+         execution.checkpointing.enabled: true
+         execution.checkpointing.interval: 300000
+         execution.checkpointing.timeout: 600000
+         execution.checkpointing.max-concurrent-checkpoints: 1
+         execution.checkpointing.min-pause-between-checkpoints: 60000
+         execution.checkpointing.mode: EXACTLY_ONCE
+         execution.checkpointing.externalized-checkpoint-retention: RETAIN_ON_CANCELLATION
+         state.checkpoints.dir: file:/opt/flink/data/checkpoints
+         state.savepoints.dir: file:/opt/flink/data/savepoints
+         state.backend: rocksdb
+         state.backend.rocksdb.localdir: /opt/flink/data/rocksdb
+       - HADOOP_CLASSPATH=/opt/flink/lib/*
+     volumes:
+       - ./flink/jobmanager/jobs:/opt/flink/usrlib  # 预留JAR包目录，后续放任务JAR
+       - ./flink/jobmanager/jobs:/opt/flink/lib/upload
+       - ./flink/jobmanager/data:/opt/flink/data
+       - ./flink/conf/jobconf/:/opt/flink/conf/jobconf:ro
+     user: "root"
+     depends_on:
+      - zookeeper
+      - hdfs-namenode
+     networks:
+       - my-network
+     healthcheck:
+       test: ["CMD", "curl", "-f", "http://localhost:8081"]
+       interval: 10s
+       timeout: 5s
+       retries: 5
+     restart: always
+
+  # 21. Flink TaskManager (纯集群模式)
+  flink-taskmanager:
+    image: flink:1.20.3-java17
+    container_name: flink-taskmanager
+    hostname: taskmanager
+    ports:
+      - "6121:6121"
+    command: taskmanager
+    environment:
+      - |    
+        FLINK_PROPERTIES=jobmanager.rpc.address: jobmanager
+        taskmanager.numberOfTaskSlots: 2
+        parallelism.default: 2
+#    volumes:
+#       - ./flink/taskmanager/data:/opt/flink/data
+    user: "root"
+    depends_on:
+      - flink-jobmanager
+    networks:
+      - my-network
+    restart: always
+networks:
+  my-network:
+    driver: bridge
