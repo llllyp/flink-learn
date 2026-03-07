@@ -27,3 +27,14 @@ clickhouse:
   max_batch_size_in_bytes: 1024 * 1024 * 10
   max_time_in_buffer_ms: 5 * 1000
   max_record_size_in_bytes: 1024 * 1024 * 3
+
+job:
+  jobIntervalMs:
+  # 任务执行间隔，单位毫秒 jobName:intervalMs
+    - FileReadJob:10000
+    - dimData:10000
+  jobCheckpointIntervalMs: 
+    - readFile:10000
+  jobParallelism: 
+    - readFile:1
+  
