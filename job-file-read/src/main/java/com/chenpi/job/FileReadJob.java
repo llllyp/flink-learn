@@ -3,6 +3,7 @@ package com.chenpi.job;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.typeinfo.Types;
 import org.apache.flink.api.java.tuple.Tuple2;
+import org.apache.flink.api.java.utils.ParameterTool;
 import org.apache.flink.connector.file.src.FileSource;
 import org.apache.flink.connector.file.src.reader.TextLineInputFormat;
 import org.apache.flink.core.fs.Path;
@@ -14,9 +15,13 @@ import static org.apache.flink.api.common.typeinfo.Types.TUPLE;
 
 public class FileReadJob {
 
-    private static final String filePath = "C:\\Users\\x\\Documents\\word_test.txt";
+//    private static final String filePath = "C:\\Users\\x\\Documents\\word_test.txt";
 
     public static void main(String[] args) throws Exception {
+
+        ParameterTool param = ParameterTool.fromArgs(args);
+        String filePath = param.get("input");
+
         // 创建执行环境
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         
