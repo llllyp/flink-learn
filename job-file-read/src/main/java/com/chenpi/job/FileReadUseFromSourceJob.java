@@ -13,7 +13,7 @@ import org.apache.flink.util.Collector;
 
 import static org.apache.flink.api.common.typeinfo.Types.TUPLE;
 
-public class FileReadJob {
+public class FileReadUseFromSourceJob {
 
 //    private static final String filePath = "C:\\Users\\x\\Documents\\word_test.txt";
 
@@ -53,6 +53,6 @@ public class FileReadJob {
         wordCounts.print();
         
         // 执行作业
-        env.execute("File Read Job");
+        env.execute(FileReadUseFromSourceJob.class.getSimpleName());
     }
 }
