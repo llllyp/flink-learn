@@ -13,6 +13,7 @@
         <module>common-core</module>
         <module>common-clickhouse</module>
         <module>job-file-read</module>
+        <module>common-kafka</module>
     </modules>
 
 
@@ -24,6 +25,7 @@
         <flink.version>1.20.3</flink.version>
         <mysql.cdc.version>3.5.0</mysql.cdc.version>
         <clickhouse.flink.version>1.17</clickhouse.flink.version>
+        <flink-connector-kafka.version>3.4.0-1.20</flink-connector-kafka.version>
 
         <jedis.version>7.2.1</jedis.version>
         <snakeyaml.version>2.5</snakeyaml.version>
@@ -63,7 +65,7 @@
             <dependency>
                 <groupId>org.apache.flink</groupId>
                 <artifactId>flink-connector-kafka</artifactId>
-                <version>${flink.version}</version>
+                <version>${flink-connector-kafka.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.apache.flink</groupId>

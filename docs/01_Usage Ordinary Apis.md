@@ -40,7 +40,7 @@ DataStreamSource<Long> dataSource3 = env.fromSequence(1, 100);
 dataSource3.print();
 
 ```
-### Socket
+## Socket
 socketTextStream(String hostname, int port) 方法是一个非并行的 Source,改方法需要传入两个参数,第一个是指定的 IP 地址或主机名, 第二个是端口号, 即从指定的 Scoket 读取数据创建 DataStream 该方法还有多个重载方法. 其中一个是 socketTextStream(String hostname, int port, String delimiter, long maxRetry), 这个重载方法可以指定行分隔符和最大重新链接次数. 这两个参数默行分隔符是"\n", 最大重新链接次数为 0
 
 示例: SocketSourceJob.java
@@ -52,6 +52,8 @@ DataStreamSource<String> dataSource = env.socketTextStream("localhost", 8888);
 ```
 在 终端输入任意文字 + 回车可以在控制台看到输入的文字   
 ![socket.png](./img/socket.png)
+
+## KafkaSource
 
 ## 自定义的 Source
 
