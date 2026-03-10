@@ -54,6 +54,8 @@ DataStreamSource<String> dataSource = env.socketTextStream("localhost", 8888);
 ![socket.png](./img/socket.png)
 
 ## KafkaSource
+示例: ConsumerKafkaJob
+
 
 ## 自定义的 Source
 

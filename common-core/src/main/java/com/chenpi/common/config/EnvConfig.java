@@ -20,6 +20,7 @@ public class EnvConfig {
 
     private Mysql mysql;
     private Mongodb mongodb;
+    private Kafka kafka;
     private Redis redis;
     private Clickhouse clickhouse;
     private JobConfig job;
@@ -54,6 +55,13 @@ public class EnvConfig {
         private String database;
         private String username;
         private String password;
+    }
+
+    @Data
+    public static class Kafka {
+        private String brokers;
+        private String startupMode;
+        private long startupTimestampMs;
     }
 
     @Data

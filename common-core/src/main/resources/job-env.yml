@@ -11,6 +11,12 @@ mongodb:
   username: root
   password: 123456
 
+kafka:
+  brokers: kafka:9092
+  # "committed_strict", "committed_earliest", "earliest", "latest", "timestamp"
+  startupMode: earliest
+  startupTimestampMs: 0
+
 redis:
   host: redis
   port: 6379
